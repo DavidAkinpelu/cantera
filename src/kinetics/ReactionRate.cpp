@@ -105,7 +105,7 @@ void ArrheniusRate::validate(const std::string& equation)
     }
 }
 
-PlogRate::PlogRate(const std::multimap<double, Arrhenius>& rates)
+PlogRate::PlogRate(const std::vector<std::pair<double, Arrhenius>>& rates)
     : Plog(rates)
 {
 }

@@ -333,7 +333,14 @@ public:
     Plog();
 
     //! Constructor from Arrhenius rate expressions at a set of pressures
+    /*!
+     * @deprecated   Deprecated in Cantera 2.6. Replaceable with constructor
+     *               using 'std::vector<std::pair<...>>'
+     */
     explicit Plog(const std::multimap<double, Arrhenius>& rates);
+
+    //! Constructor from Arrhenius rate expressions at a set of pressures
+    explicit Plog(const std::vector<std::pair<double, Arrhenius>>& rates);
 
     //! Perform object setup based on AnyMap node information
     //! @param rates  vector of AnyMap containing rate information
@@ -343,9 +350,6 @@ public:
                        const UnitSystem& units, const Units& rate_units);
 
     void getParameters(AnyMap& rateNode, const Units& rate_units) const;
-
-    //! Set up Plog object
-    void setup(const std::multimap<double, Arrhenius>& rates);
 
     //! Update concentration-dependent parts of the rate coefficient.
     //! @param c natural log of the pressure in Pa
@@ -410,9 +414,11 @@ public:
     //! has a negative pre-exponential factor.
     void validate(const std::string& equation);
 
-    //! Return the pressures and Arrhenius expressions which comprise this
-    //! reaction.
+    //! Return the pressures and Arrhenius expressions which comprise this reaction.
     std::vector<std::pair<double, Arrhenius> > rates() const;
+
+    //! Set pressures and Arrhenius expressions which comprise this reaction.
+    void setRates(const std::vector<std::pair<double, Arrhenius>>& rates);
 
 protected:
     //! log(p) to (index range) in the rates_ vector

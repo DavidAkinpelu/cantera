@@ -311,7 +311,7 @@ public:
     PlogRate() {}
 
     //! Constructor from Arrhenius rate expressions at a set of pressures
-    explicit PlogRate(const std::multimap<double, Arrhenius>& rates);
+    explicit PlogRate(const std::vector<std::pair<double, Arrhenius>>& rates);
 
     //! Constructor using AnyMap content
     //! @param node  AnyMap containing rate information

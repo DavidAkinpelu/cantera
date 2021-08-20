@@ -1573,10 +1573,10 @@ void setupChemicallyActivatedReaction(ChemicallyActivatedReaction& R,
 void setupPlogReaction(PlogReaction2& R, const XML_Node& rxn_node)
 {
     XML_Node& rc = rxn_node.child("rateCoeff");
-    std::multimap<double, Arrhenius> rates;
+    std::vector<std::pair<double, Arrhenius>> rates;
     for (size_t m = 0; m < rc.nChildren(); m++) {
         const XML_Node& node = rc.child(m);
-        rates.insert({getFloat(node, "P", "toSI"), readArrhenius(node)});
+        rates.emplace_back(getFloat(node, "P", "toSI"), readArrhenius(node));
     }
     R.rate = Plog(rates);
     setupReaction(R, rxn_node);
@@ -1585,10 +1585,10 @@ void setupPlogReaction(PlogReaction2& R, const XML_Node& rxn_node)
 void setupPlogReaction(PlogReaction2& R, const AnyMap& node, const Kinetics& kin)
 {
     setupReaction(R, node, kin);
-    std::multimap<double, Arrhenius> rates;
+    std::vector<std::pair<double, Arrhenius>> rates;
     for (const auto& rate : node.at("rate-constants").asVector<AnyMap>()) {
-        rates.insert({rate.convert("P", "Pa"),
-                      readArrhenius(R, AnyValue(rate), kin, node.units())});
+        rates.emplace_back(rate.convert("P", "Pa"),
+                           readArrhenius(R, AnyValue(rate), kin, node.units()));
     }
     R.rate = Plog(rates);
 }

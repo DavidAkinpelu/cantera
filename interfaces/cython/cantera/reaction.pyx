@@ -236,15 +236,15 @@ cdef class PlogRate(ReactionRate):
             return rates
 
         def __set__(self, rates):
-            cdef multimap[double, CxxArrhenius] ratemap
+            cdef vector[pair[double, CxxArrhenius]] cxxrates
             cdef Arrhenius rate
             cdef pair[double, CxxArrhenius] item
             for p, rate in rates:
                 item.first = p
                 item.second = deref(rate.rate)
-                ratemap.insert(item)
+                cxxrates.push_back(item)
 
-            self._rate.reset(new CxxPlogRate(ratemap))
+            self._rate.reset(new CxxPlogRate(cxxrates))
             self.rate = self._rate.get()
 
 
@@ -1378,16 +1378,16 @@ cdef class PlogReaction(Reaction):
         return rates
 
     cdef _legacy_set_rates(self, list rates):
-        cdef multimap[double,CxxArrhenius] ratemap
+        cdef vector[pair[double,CxxArrhenius]] cxxrates
         cdef Arrhenius rate
         cdef pair[double,CxxArrhenius] item
         for p, rate in rates:
             item.first = p
             item.second = deref(rate.rate)
-            ratemap.insert(item)
+            cxxrates.push_back(item)
 
         cdef CxxPlogReaction2* r = self.cxx_object2()
-        r.rate = CxxPlog(ratemap)
+        r.rate = CxxPlog(cxxrates)
 
     property rates:
         """
