@@ -235,8 +235,8 @@ cdef class Kinetics(_SolutionBase):
 
     def reactant_stoich_coeff(self, k_spec, int i_reaction):
         """
-        The stoichiometric coefficient of species *k_spec* as a reactant in
-        reaction *i_reaction*.
+        The stoichiometric coefficient of species ``k_spec`` as a reactant in
+        reaction ``i_reaction``.
         """
         cdef int k
         if isinstance(k_spec, (str, bytes)):
@@ -250,8 +250,8 @@ cdef class Kinetics(_SolutionBase):
 
     def product_stoich_coeff(self, k_spec, int i_reaction):
         """
-        The stoichiometric coefficient of species *k_spec* as a product in
-        reaction *i_reaction*.
+        The stoichiometric coefficient of species ``k_spec`` as a product in
+        reaction ``i_reaction``.
         """
         cdef int k
         if isinstance(k_spec, (str, bytes)):
@@ -268,28 +268,65 @@ cdef class Kinetics(_SolutionBase):
         The array of reactant stoichiometric coefficients. Element *[k,i]* of
         this array is the reactant stoichiometric coefficient of species *k* in
         reaction *i*.
+
+        .. deprecated:: 2.6
+
+            To be removed after Cantera 2.6; replaceable by property
+            `Kinetics.reactant_stoich_coefficients`.
+
         """
-        cdef np.ndarray[np.double_t, ndim=2] data = np.empty((self.n_total_species,
-                                                              self.n_reactions))
-        cdef int i,k
-        for i in range(self.n_reactions):
-            for k in range(self.n_total_species):
-                data[k,i] = self.kinetics.reactantStoichCoeff(k,i)
-        return data
+        warnings.warn("To be removed after Cantera 2.6; replaceable by "
+                      "property 'reactant_stoich_coefficients'.", DeprecationWarning)
+        return self.reactant_stoich_coefficients
+
+    property reactant_stoich_coefficients:
+        """
+        The array of reactant stoichiometric coefficients. Element ``[k,i]`` of
+        this array is the reactant stoichiometric coefficient of species ``k`` in
+        reaction ``i``.
+
+        For sparse output, set ``ct.use_sparse(True)``.
+        """
+        def __get__(self):
+            # ensure that output vectors have sufficient size
+            shape = self.n_total_species, self.n_reactions
+            max_size = shape[0] * shape[1]
+            if __use_sparse__:
+                data, ix_ij = get_sparse(self, kin_reactantStoichCoeffs, max_size)
+                return _scipy_sparse.coo_matrix((data, ix_ij), shape=shape)
+            return get_dense(self, kin_reactantStoichCoeffs, max_size, shape)
 
     def product_stoich_coeffs(self):
         """
         The array of product stoichiometric coefficients. Element *[k,i]* of
         this array is the product stoichiometric coefficient of species *k* in
         reaction *i*.
+
+        .. deprecated:: 2.6
+
+            To be removed after Cantera 2.6; replaceable by property
+            `Kinetics.product_stoich_coefficients`.
         """
-        cdef np.ndarray[np.double_t, ndim=2] data = np.empty((self.n_total_species,
-                                                              self.n_reactions))
-        cdef int i,k
-        for i in range(self.n_reactions):
-            for k in range(self.n_total_species):
-                data[k,i] = self.kinetics.productStoichCoeff(k,i)
-        return data
+        warnings.warn("To be removed after Cantera 2.6; replaceable by "
+                      "property 'product_stoich_coefficients'.", DeprecationWarning)
+        return self.product_stoich_coefficients
+
+    property product_stoich_coefficients:
+        """
+        The array of product stoichiometric coefficients. Element ``[k,i]`` of
+        this array is the product stoichiometric coefficient of species ``k`` in
+        reaction ``i``.
+
+        For sparse output, set ``ct.use_sparse(True)``.
+        """
+        def __get__(self):
+            # ensure that output vectors have sufficient size
+            shape = self.n_total_species, self.n_reactions
+            max_size = shape[0] * shape[1]
+            if __use_sparse__:
+                data, ix_ij = get_sparse(self, kin_productStoichCoeffs, max_size)
+                return _scipy_sparse.coo_matrix((data, ix_ij), shape=shape)
+            return get_dense(self, kin_productStoichCoeffs, max_size, shape)
 
     property forward_rates_of_progress:
         """
