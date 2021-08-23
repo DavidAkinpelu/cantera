@@ -558,6 +558,15 @@ public:
      * @param i   reaction index
      */
     virtual double reactantStoichCoeff(size_t k, size_t i) const;
+
+    /**
+     * Stoichiometric coefficient matrix for reactants.
+     */
+    Eigen::SparseMatrix<double> reactantStoichCoeffs() const
+    {
+        return m_reactantStoich.stoichCoeffs();
+    }
+
     /**
      * Stoichiometric coefficient of species k as a product in reaction i.
      *
@@ -565,6 +574,14 @@ public:
      * @param i   reaction index
      */
     virtual double productStoichCoeff(size_t k, size_t i) const;
+
+    /**
+     * Stoichiometric coefficient matrix for products.
+     */
+    Eigen::SparseMatrix<double> productStoichCoeffs() const
+    {
+        return m_productStoich.stoichCoeffs();
+    }
 
     //! Reactant order of species k in reaction i.
     /*!
