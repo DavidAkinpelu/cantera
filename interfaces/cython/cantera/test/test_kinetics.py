@@ -1,9 +1,18 @@
 import numpy as np
 import re
 import itertools
+import pkg_resources
 
 import cantera as ct
 from . import utilities
+
+# avoid explicit dependence of cantera on scipy
+try:
+    pkg_resources.get_distribution('scipy')
+except pkg_resources.DistributionNotFound:
+    _scipy_sparse = ImportError('Method requires a working scipy installation.')
+else:
+    from scipy import sparse as _scipy_sparse
 
 
 class TestKinetics(utilities.CanteraTest):
@@ -129,6 +138,20 @@ class TestKinetics(utilities.CanteraTest):
         check_reactant('O2', 0, 0)
         check_product('O', 0, 0)
         check_product('O2', 0, 1)
+
+    @utilities.unittest.skipIf(isinstance(_scipy_sparse, ImportError), "scipy is not installed")
+    def test_stoich_coeffs_sparse(self):
+        nu_r_dense = self.phase.reactant_stoich_coefficients
+        nu_p_dense = self.phase.product_stoich_coefficients
+
+        ct.use_sparse(True)
+        nu_r_sparse = self.phase.reactant_stoich_coefficients
+        nu_p_sparse = self.phase.product_stoich_coefficients
+
+        self.assertTrue((nu_r_sparse.toarray() == nu_r_dense).all())
+        self.assertTrue((nu_p_sparse.toarray() == nu_p_dense).all())
+
+        ct.use_sparse(False)
 
     def test_rates_of_progress(self):
         self.assertEqual(len(self.phase.net_rates_of_progress),
