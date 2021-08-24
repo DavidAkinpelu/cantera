@@ -148,11 +148,37 @@ public:
         R[m_rxn] -= S[m_ic0];
     }
 
+    void finalizeSetup(const std::vector<std::pair<int, int>>& indices)
+    {
+        size_t count = 0;
+        for (size_t n = 0; n < indices.size(); n++) {
+            size_t row = indices[n].first;
+            size_t col = indices[n].second;
+            if (row == m_rxn && col == m_ic0) {
+                m_jc0 = n;
+                count++;
+                break;
+            }
+        }
+        if (count < 1) {
+            throw CanteraError("C1::finalizeSetup",
+                "Found no entries in Jacobian setup for reaction ({}).", m_rxn);
+        }
+    }
+
+    void jacobian(const double* S, const double* R, vector_fp& jac) const
+    {
+        jac[m_jc0] += R[m_rxn]; // index (m_ic0, m_rxn)
+    }
+
 private:
     //! Reaction number
     size_t m_rxn;
     //! Species number
     size_t m_ic0;
+
+    //! Index in jacobian triplet vector
+    size_t m_jc0;
 };
 
 /**
@@ -192,12 +218,52 @@ public:
         R[m_rxn] -= (S[m_ic0] + S[m_ic1]);
     }
 
+    void finalizeSetup(const std::vector<std::pair<int, int>>& indices)
+    {
+        size_t count = 0;
+        for (size_t n = 0; n < indices.size(); n++) {
+            size_t row = indices[n].first;
+            if (row == m_rxn) {
+                size_t col = indices[n].second;
+                if (col == m_ic0) {
+                    m_jc0 = n;
+                    count++;
+                }
+                if (col == m_ic1) {
+                    m_jc1 = n;
+                    count++;
+                }
+            }
+            if (count == 2) {
+                break;
+            }
+        }
+        if (count < 2) {
+            throw CanteraError("C2::finalizeSetup",
+                "Found less than 2 entries in Jacobian setup for reaction ({}): {}",
+                m_rxn, count);
+        }
+    }
+
+    void jacobian(const double* S, const double* R, vector_fp& jac) const
+    {
+        if (S[m_ic1] > 0) {
+            jac[m_jc0] += R[m_rxn] * S[m_ic1]; // index (m_ic0, m_rxn)
+        }
+        if (S[m_ic0] > 0) {
+            jac[m_jc1] += R[m_rxn] * S[m_ic0]; // index (m_ic1, m_rxn)
+        }
+    }
+
 private:
     //! Reaction index -> index into the ROP vector
     size_t m_rxn;
 
     //! Species index -> index into the species vector for the two species.
     size_t m_ic0, m_ic1;
+
+    //! Indices in jacobian triplet vector
+    size_t m_jc0, m_jc1;
 };
 
 /**
@@ -240,12 +306,59 @@ public:
         R[m_rxn] -= (S[m_ic0] + S[m_ic1] + S[m_ic2]);
     }
 
+    void finalizeSetup(const std::vector<std::pair<int, int>>& indices)
+    {
+        size_t count = 0;
+        for (size_t n = 0; n < indices.size(); n++) {
+            size_t row = indices[n].first;
+            if (row == m_rxn) {
+                size_t col = indices[n].second;
+                if (col == m_ic0) {
+                    m_jc0 = n;
+                    count++;
+                }
+                if (col == m_ic1) {
+                    m_jc1 = n;
+                    count++;
+                }
+                if (col == m_ic2) {
+                    m_jc2 = n;
+                    count++;
+                }
+            }
+            if (count == 3) {
+                break;
+            }
+        }
+        if (count < 3) {
+            throw CanteraError("C3::finalizeSetup",
+                "Found less than 3 entries in Jacobian setup for reaction ({}): {}",
+                m_rxn, count);
+        }
+    }
+
+    void jacobian(const double* S, const double* R, vector_fp& jac) const
+    {
+        if (S[m_ic1] > 0 && S[m_ic2] > 0) {
+            jac[m_jc0] += R[m_rxn] * S[m_ic1] * S[m_ic2];; // index (m_ic0, m_rxn)
+        }
+        if (S[m_ic0] > 0 && S[m_ic2] > 0) {
+            jac[m_jc1] += R[m_rxn] * S[m_ic0] * S[m_ic2]; // index (m_ic1, m_ic1)
+        }
+        if (S[m_ic0] > 0 && S[m_ic1] > 0) {
+            jac[m_jc2] += R[m_rxn] * S[m_ic0] * S[m_ic1]; // index (m_ic2, m_ic2)
+        }
+    }
+
 private:
     size_t m_rxn;
     size_t m_ic0;
     size_t m_ic1;
     size_t m_ic2;
-};
+
+    //! Indices in jacobian triplet vector
+    size_t m_jc0, m_jc1, m_jc2;
+    };
 
 /**
  * Handles any number of species in a reaction, including fractional
@@ -266,6 +379,7 @@ public:
         m_rxn(rxn) {
         m_n = ic.size();
         m_ic.resize(m_n);
+        m_jc.resize(m_n, 0);
         m_order.resize(m_n);
         m_stoich.resize(m_n);
         for (size_t n = 0; n < m_n; n++) {
@@ -319,6 +433,56 @@ public:
         }
     }
 
+    void finalizeSetup(const std::vector<std::pair<int, int>>& indices)
+    {
+        size_t count = 0;
+        for (size_t n = 0; n < indices.size(); n++) {
+            size_t row = indices[n].first;
+            if (row == m_rxn) {
+                size_t col = indices[n].second;
+                for (size_t i = 0; i < m_n; i++) {
+                    if (m_ic[i] == col) {
+                        m_jc[i] = n;
+                        count++;
+                    }
+                }
+            }
+            if (count == m_n) {
+                break;
+            }
+        }
+        if (count < m_n) {
+            throw CanteraError("C_AnyN::finalizeSetup",
+                "Found less than {} entries in Jacobian setup for reaction ({}): {}",
+                m_n, m_rxn, count);
+        }
+    }
+
+void jacobian(const double* S, const double* R, vector_fp& jac) const
+    {
+        for (size_t i = 0; i < m_n; i++) {
+            // calculate derivative
+            double prod = R[m_rxn];
+            double order_i = m_order[i];
+            if (S[m_ic[i]] > 0. && order_i != 0.) {
+                prod *= order_i * std::pow(S[m_ic[i]], order_i - 1);
+                for (size_t j = 0; j < m_n; j++) {
+                    if (i != j) {
+                        if (S[m_ic[j]] > 0) {
+                            prod *= std::pow(S[m_ic[j]], m_order[j]);
+                        } else {
+                            prod = 0.;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                prod = 0.;
+            }
+            jac[m_jc[i]] += prod;
+        }
+    }
+
 private:
     //! Length of the m_ic vector
     /*!
@@ -358,6 +522,9 @@ private:
      *  number m_ic[m], has a stoichiometric coefficient of m_stoich[n].
      */
     vector_fp m_stoich;
+
+    //! Indices in jacobian triplet vector
+    vector_int m_jc;
 };
 
 template<class InputIter, class Vec1, class Vec2>
@@ -402,6 +569,23 @@ inline static void _decrementReactions(InputIter begin,
 {
     for (; begin != end; ++begin) {
         begin->decrementReaction(input, output);
+    }
+}
+
+template<class InputIter, class Indices>
+inline static void _finalize(InputIter begin, InputIter end, Indices& ix)
+{
+    for (; begin != end; ++begin) {
+        begin->finalizeSetup(ix);
+    }
+}
+
+template<class InputIter, class Vec1, class Vec2, class Vec3>
+inline static void _jacobian(InputIter begin, InputIter end,
+                             const Vec1& S, const Vec2& R, Vec3& jac)
+{
+    for (; begin != end; ++begin) {
+        begin->jacobian(S, R, jac);
     }
 }
 
@@ -475,8 +659,32 @@ public:
         m_stoichCoeffs.reserve(nCoeffs);
         m_stoichCoeffs.setFromTriplets(m_coeffList.begin(), m_coeffList.end());
 
-        m_finalized = true;
-    }
+        // Set up outer/inner indices for mapped jacobian output
+        Eigen::SparseMatrix<double> tmp = m_stoichCoeffs.transpose();
+        m_outerIndices.resize(nSpc + 1); // number of columns + 1
+        for (int i = 0; i < tmp.outerSize() + 1; i++) {
+            m_outerIndices[i] = tmp.outerIndexPtr()[i];
+        }
+        m_innerIndices.resize(nCoeffs);
+        for (size_t n = 0; n < nCoeffs; n++) {
+            m_innerIndices[n] = tmp.innerIndexPtr()[n];
+        }
+        m_values.resize(nCoeffs, 0.);
+
+        // Set up index pairs for jacobians
+        std::vector<std::pair<int, int>> indices;
+        for (int i = 0; i < tmp.outerSize(); i++) {
+            for (Eigen::SparseMatrix<double>::InnerIterator it(tmp, i); it; ++it) {
+                indices.emplace_back(it.row(), it.col());
+            }
+        }
+        // finalize reactions
+        _finalize(m_c1_list.begin(), m_c1_list.end(), indices);
+        _finalize(m_c2_list.begin(), m_c2_list.end(), indices);
+        _finalize(m_c3_list.begin(), m_c3_list.end(), indices);
+        _finalize(m_cn_list.begin(), m_cn_list.end(), indices);
+
+        m_finalized = true;    }
 
     /**
      * Add a single reaction to the list of reactions that this stoichiometric
@@ -606,6 +814,31 @@ public:
         return m_stoichCoeffs;
     }
 
+    //! Calculate derivatives with respect to species concentrations.
+    /*!
+     * The species derivative is the term of the Jacobian that accounts for
+     * species products in the law of mass action. As StoichManagerN does not account
+     * for third bodies or rate constants that depend on species concentrations,
+     * corresponding derivatives are not included.
+     *
+     *  @param conc    Species concentration.
+     *  @param rates   Rates-of-progress.
+     */
+    Eigen::SparseMatrix<double> speciesDerivatives(
+        const double* conc, const double* rates)
+    {
+        // calculate jacobian entries using known sparse storage order
+        std::fill(m_values.begin(), m_values.end(), 0.);
+        _jacobian(m_c1_list.begin(), m_c1_list.end(), conc, rates, m_values);
+        _jacobian(m_c2_list.begin(), m_c2_list.end(), conc, rates, m_values);
+        _jacobian(m_c3_list.begin(), m_c3_list.end(), conc, rates, m_values);
+        _jacobian(m_cn_list.begin(), m_cn_list.end(), conc, rates, m_values);
+
+        return Eigen::Map<Eigen::SparseMatrix<double>>(
+            m_stoichCoeffs.cols(), m_stoichCoeffs.rows(), m_values.size(),
+            m_outerIndices.data(), m_innerIndices.data(), m_values.data());
+    }
+
 private:
     bool m_finalized; //!< Boolean flag indicating whether setup is finalized
 
@@ -617,6 +850,11 @@ private:
     //! Sparse matrices for stoichiometric coefficients
     std::vector<Eigen::Triplet<double>> m_coeffList;
     Eigen::SparseMatrix<double> m_stoichCoeffs;
+
+    //! Storage indicies used to build Jacobians
+    std::vector<int> m_outerIndices;
+    std::vector<int> m_innerIndices;
+    vector_fp m_values;
 };
 
 }
