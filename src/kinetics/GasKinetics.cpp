@@ -21,6 +21,15 @@ GasKinetics::GasKinetics(ThermoPhase* thermo) :
 {
 }
 
+void GasKinetics::finalizeSetup()
+{
+    // Third-body calculators
+    m_3b_concm.finalizeSetup(m_kk, nReactions());
+    m_falloff_concm.finalizeSetup(m_kk, nReactions());
+
+    BulkKinetics::finalizeSetup();
+}
+
 void GasKinetics::update_rates_T()
 {
     double T = thermo().temperature();

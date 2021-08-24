@@ -30,7 +30,34 @@ public:
             assert(eff.first != npos);
             m_species.back().push_back(eff.first);
             m_eff.back().push_back(eff.second - dflt);
+            m_efficiencyList.emplace_back(rxnNumber, eff.first, eff.second - dflt);
         }
+    }
+
+    void finalizeSetup(size_t nSpc, size_t nRxn)
+    {
+        // Sparse Efficiency coefficient matrix
+        Eigen::SparseMatrix<double> efficiencies;
+        efficiencies.setZero();
+        efficiencies.resize(nRxn, nSpc);
+        efficiencies.reserve(m_efficiencyList.size());
+        efficiencies.setFromTriplets(
+            m_efficiencyList.begin(), m_efficiencyList.end());
+
+        // Jacobian matrix multipliers
+        std::vector<Eigen::Triplet<double>> triplets;
+        triplets.reserve(nRxn * nSpc);
+        for (size_t i = 0; i < m_default.size(); i++) {
+            if (m_default[i] != 0) {
+                for (size_t j = 0; j < nSpc; j++) {
+                    triplets.emplace_back(m_reaction_index[i], j, m_default[i]);
+                }
+            }
+        }
+        Eigen::SparseMatrix<double> defaults(nRxn, nSpc);
+        defaults.reserve(triplets.size());
+        defaults.setFromTriplets(triplets.begin(), triplets.end());
+        m_multipliers = efficiencies + defaults;
     }
 
     void update(const vector_fp& conc, double ctot, double* work) {
@@ -49,6 +76,16 @@ public:
         }
     }
 
+    //! Calculate derivatives with respect to species concentrations.
+    /*!
+     *  @param product   Product of law of mass action and rate terms.
+     */
+    Eigen::SparseMatrix<double> speciesDerivatives(const double* product)
+    {
+        ConstMappedVector mapped(product, m_multipliers.rows());
+        return mapped.asDiagonal() * m_multipliers;
+    }
+
     size_t workSize() {
         return m_reaction_index.size();
     }
@@ -65,6 +102,12 @@ protected:
 
     //! The default efficiency for each reaction
     vector_fp m_default;
+
+    //! Sparse efficiency matrix (compensated for defaults)
+    std::vector<Eigen::Triplet<double>> m_efficiencyList;
+
+    //! Sparse Jacobian multiplier matrix
+    Eigen::SparseMatrix<double> m_multipliers;
 };
 
 }
