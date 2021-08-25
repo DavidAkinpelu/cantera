@@ -57,6 +57,15 @@ public:
     virtual void finalizeSetup();
     void updateROP();
 
+    virtual void getJacobianSettings(AnyMap& settings) const;
+    virtual void setJacobianSettings(const AnyMap& settings);
+    virtual Eigen::SparseMatrix<double> fwdRatesOfProgress_ddC();
+    virtual Eigen::SparseMatrix<double> revRatesOfProgress_ddC();
+    virtual Eigen::SparseMatrix<double> netRatesOfProgress_ddC();
+    virtual Eigen::VectorXd fwdRatesOfProgress_ddT();
+    virtual Eigen::VectorXd revRatesOfProgress_ddT();
+    virtual Eigen::VectorXd netRatesOfProgress_ddT();
+
     //! Update temperature-dependent portions of reaction rates and falloff
     //! functions.
     virtual void update_rates_T();
@@ -120,11 +129,43 @@ private:
         }
     }
 
+    //! Multiply rate with scaled temperature derivatives of the inverse
+    //! equilibrium constant
+    /*!
+     *  This (scaled) derivative is handled by a finite difference.
+     */
+    void processEquilibriumConstants_ddTscaled(double* drkcn);
+
+    //! Routine to calculate numerical temperature derivatives
+    /*!
+     *  @TODO  This is a 'work-around', as there is no consistent handling
+     *      of reaction rates yet (FalloffReaction and BlowersMaselReaction
+     *      still use 'legacy' implementations). Once the transition to the
+     *      'new' ReactionRate framework is complete, individual numerical
+     *      derivatives should be handled there (potentially as a
+     *      fall-back option if no exact derivative is available).
+     */
+    Eigen::VectorXd ratesOfProgress_ddT(bool forward);
     //!@}
+
+    //! Buffers for partial rop results with length nReactions()
+    vector_fp m_rbuf0;
+    vector_fp m_rbuf1;
+    vector_fp m_rbuf2;
+
+    //! Jacobian settings
+    bool m_jac_const_pressure;
+    bool m_jac_exact_ddT;
+    bool m_jac_skip_third_bodies;
+    bool m_jac_skip_falloff;
+    double m_jac_atol_deltaT;
 
 protected:
     //! Reaction index of each falloff reaction
     std::vector<size_t> m_fallindx;
+
+    //! Reaction index of each legacy reaction (old framework)
+    std::vector<size_t> m_legacy;
 
     //! Map of reaction index to falloff reaction index (i.e indices in
     //! #m_falloff_low_rates and #m_falloff_high_rates)
