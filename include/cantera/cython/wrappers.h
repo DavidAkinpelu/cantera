@@ -79,6 +79,11 @@ size_t sparseComponents(const Eigen::SparseMatrix<double>& mat,
     int* rows, int* cols, double* data, size_t dim) \
     { return sparseComponents(object->FUNC_NAME(), rows, cols, data, dim); }
 
+// Function which maps vector output to a 1D array of a given length
+#define MAPPED_FUNC(PREFIX, CLASS_NAME, FUNC_NAME) \
+    void PREFIX ## _ ## FUNC_NAME(Cantera::CLASS_NAME* object, double* data, size_t dim) \
+    { Eigen::Map<Eigen::VectorXd> mapped(data, dim); mapped = object->FUNC_NAME(); }
+
 // Function which populates a 1D array
 #define ARRAY_FUNC(PREFIX, CLASS_NAME, FUNC_NAME) \
     void PREFIX ## _ ## FUNC_NAME(Cantera::CLASS_NAME* object, double* data) \
@@ -93,6 +98,7 @@ size_t sparseComponents(const Eigen::SparseMatrix<double>& mat,
 #define THERMO_1D(FUNC_NAME) ARRAY_FUNC(thermo, ThermoPhase, FUNC_NAME)
 #define KIN_1D(FUNC_NAME) ARRAY_FUNC(kin, Kinetics, FUNC_NAME)
 #define KIN_SPARSE(FUNC_NAME) SPARSE_FUNC(kin, Kinetics, FUNC_NAME)
+#define KIN_MAPPED(FUNC_NAME) MAPPED_FUNC(kin, Kinetics, FUNC_NAME)
 #define TRANSPORT_1D(FUNC_NAME) ARRAY_FUNC(tran, Transport, FUNC_NAME)
 #define TRANSPORT_2D(FUNC_NAME) ARRAY_FUNC2(tran, Transport, FUNC_NAME)
 
@@ -127,6 +133,14 @@ KIN_1D(getFwdRatesOfProgress)
 KIN_1D(getRevRatesOfProgress)
 KIN_1D(getNetRatesOfProgress)
 
+KIN_SPARSE(fwdRatesOfProgress_ddC)
+KIN_SPARSE(revRatesOfProgress_ddC)
+KIN_SPARSE(netRatesOfProgress_ddC)
+
+KIN_MAPPED(fwdRatesOfProgress_ddT)
+KIN_MAPPED(revRatesOfProgress_ddT)
+KIN_MAPPED(netRatesOfProgress_ddT)
+
 KIN_1D(getEquilibriumConstants)
 KIN_1D(getFwdRateConstants)
 KIN_1D(getRevRateConstants)
@@ -141,6 +155,14 @@ KIN_1D(getDeltaSSEntropy)
 KIN_1D(getCreationRates)
 KIN_1D(getDestructionRates)
 KIN_1D(getNetProductionRates)
+
+KIN_SPARSE(creationRates_ddC)
+KIN_SPARSE(destructionRates_ddC)
+KIN_SPARSE(netProductionRates_ddC)
+
+KIN_MAPPED(creationRates_ddT)
+KIN_MAPPED(destructionRates_ddT)
+KIN_MAPPED(netProductionRates_ddT)
 
 TRANSPORT_1D(getMixDiffCoeffs)
 TRANSPORT_1D(getMixDiffCoeffsMass)

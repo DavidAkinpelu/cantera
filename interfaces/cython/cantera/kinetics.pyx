@@ -20,6 +20,11 @@ cdef np.ndarray get_reaction_array(Kinetics kin, kineticsMethod1d method):
     method(kin.kinetics, &data[0])
     return data
 
+cdef np.ndarray get_mapped(Kinetics kin, kineticsMethodMapped method, size_t dim):
+    cdef np.ndarray[np.double_t, ndim=1] data = np.empty(dim)
+    method(kin.kinetics, &data[0], dim)
+    return data
+
 cdef np.ndarray get_dense(Kinetics kin, kineticsMethodSparse method,
         size_t max_dim, tuple shape):
     cdef vector[int] rows
@@ -420,6 +425,180 @@ cdef class Kinetics(_SolutionBase):
         """
         def __get__(self):
             return get_species_array(self, kin_getNetProductionRates)
+
+    property jacobian_settings:
+        """ """
+        def __get__(self):
+            cdef CxxAnyMap settings
+            self.kinetics.getJacobianSettings(settings)
+            return anymap_to_dict(settings)
+        def __set__(self, settings):
+            self.kinetics.setJacobianSettings(dict_to_anymap(settings))
+
+    property forward_rop_species_derivatives:
+        """
+        Calculate Jacobian for forward rates-of-progress with respect to species
+        concentrations. For sparse output, set ``ct.use_sparse(True)``.
+
+        Warning: this method is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
+        def __get__(self):
+            shape = self.n_reactions, self.n_total_species
+            max_size = shape[0] * shape[1]
+            if __use_sparse__:
+                data, ix_ij = get_sparse(self, kin_fwdRatesOfProgress_ddC, max_size)
+                return _scipy_sparse.coo_matrix((data, ix_ij), shape=shape)
+            return get_dense(self, kin_fwdRatesOfProgress_ddC, max_size, shape)
+
+    property forward_rop_temperature_derivatives:
+        """
+        Calculate Jacobian for forward rates-of-progress with respect to temperature.
+
+        Warning: this method is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
+        def __get__(self):
+            return get_mapped(self, kin_fwdRatesOfProgress_ddT, self.n_reactions)
+
+    property reverse_rop_species_derivatives:
+        """
+        Calculate Jacobian for reverse rates-of-progress with respect to species
+        concentrations. For sparse output, set ``ct.use_sparse(True)``.
+
+        Warning: this method is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
+        def __get__(self):
+            shape = self.n_reactions, self.n_total_species
+            max_size = shape[0] * shape[1]
+            if __use_sparse__:
+                data, ix_ij = get_sparse(self, kin_revRatesOfProgress_ddC, max_size)
+                return _scipy_sparse.coo_matrix((data, ix_ij), shape=shape)
+            return get_dense(self, kin_revRatesOfProgress_ddC, max_size, shape)
+
+    property reverse_rop_temperature_derivatives:
+        """
+        Calculate Jacobian for reverse rates-of-progress with respect to temperature.
+
+        Warning: this method is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
+        def __get__(self):
+            return get_mapped(self, kin_revRatesOfProgress_ddT, self.n_reactions)
+
+    property net_rop_species_derivatives:
+        """
+        Calculate Jacobian for net rates-of-progress with respect to species
+        concentrations. For sparse output, set ``ct.use_sparse(True)``.
+
+        Warning: this method is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
+        def __get__(self):
+            shape = self.n_reactions, self.n_total_species
+            max_size = shape[0] * shape[1]
+            if __use_sparse__:
+                data, ix_ij = get_sparse(self, kin_netRatesOfProgress_ddC, max_size)
+                return _scipy_sparse.coo_matrix((data, ix_ij), shape=shape)
+            return get_dense(self, kin_netRatesOfProgress_ddC, max_size, shape)
+
+    property net_rop_temperature_derivatives:
+        """
+        Calculate Jacobian for net rates-of-progress with respect to temperature.
+
+        Warning: this method is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
+        def __get__(self):
+            return get_mapped(self, kin_netRatesOfProgress_ddT, self.n_reactions)
+
+    property creation_rate_species_derivatives:
+        """
+        Calculate Jacobian for species creation rates with respect to species
+        concentrations. For sparse output, set ``ct.use_sparse(True)``.
+
+        Warning: this method is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
+        def __get__(self):
+            shape = self.n_total_species, self.n_total_species
+            max_size = shape[0] * shape[1]
+            if __use_sparse__:
+                data, ix_ij = get_sparse(
+                    self, kin_creationRates_ddC, max_size)
+                return _scipy_sparse.coo_matrix((data, ix_ij), shape=shape)
+            return get_dense(
+                self, kin_creationRates_ddC, max_size, shape)
+
+    property creation_rate_temperature_derivatives:
+        """
+        Calculate Jacobian of species creation rates with respect to temperature.
+
+        Warning: this method is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
+        def __get__(self):
+            return get_mapped(
+                self, kin_creationRates_ddT, self.n_total_species)
+
+    property destruction_rate_species_derivatives:
+        """
+        Calculate Jacobian for species destruction rates with respect to species
+        concentrations. For sparse output, set ``ct.use_sparse(True)``.
+
+        Warning: this method is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
+        def __get__(self):
+            shape = self.n_total_species, self.n_total_species
+            max_size = shape[0] * shape[1]
+            if __use_sparse__:
+                data, ix_ij = get_sparse(
+                    self, kin_destructionRates_ddC, max_size)
+                return _scipy_sparse.coo_matrix((data, ix_ij), shape=shape)
+            return get_dense(
+                self, kin_destructionRates_ddC, max_size, shape)
+
+    property destruction_rate_temperature_derivatives:
+        """
+        Calculate Jacobian of species destruction rates with respect to temperature.
+
+        Warning: this method is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
+        def __get__(self):
+            return get_mapped(
+                self, kin_destructionRates_ddT, self.n_total_species)
+
+    property net_production_rate_species_derivatives:
+        """
+        Calculate Jacobian for species net production rates with respect to species
+        concentrations. For sparse output, set ``ct.use_sparse(True)``.
+
+        Warning: this method is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
+        def __get__(self):
+            shape = self.n_total_species, self.n_total_species
+            max_size = shape[0] * shape[1]
+            if __use_sparse__:
+                data, ix_ij = get_sparse(
+                    self, kin_netProductionRates_ddC, max_size)
+                return _scipy_sparse.coo_matrix((data, ix_ij), shape=shape)
+            return get_dense(
+                self, kin_netProductionRates_ddC, max_size, shape)
+
+    property net_production_rate_temperature_derivatives:
+        """
+        Calculate Jacobian of species net production rates with respect to temperature.
+
+        Warning: this method is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
+        def __get__(self):
+            return get_mapped(
+                self, kin_netProductionRates_ddT, self.n_total_species)
 
     property delta_enthalpy:
         """Change in enthalpy for each reaction [J/kmol]."""
