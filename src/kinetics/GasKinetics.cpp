@@ -159,7 +159,7 @@ void GasKinetics::getEquilibriumConstants(doublereal* kc)
     m_temp = 0.0;
 }
 
-void GasKinetics::processFalloffReactions()
+void GasKinetics::processFalloffReactions(double* ropf)
 {
     // use m_ropr for temporary storage of reduced pressure
     vector_fp& pr = m_ropr;
@@ -178,49 +178,22 @@ void GasKinetics::processFalloffReactions()
         } else { // CHEMACT_RXN
             pr[i] *= m_rfn_low[i];
         }
-        m_ropf[m_fallindx[i]] = pr[i];
+        ropf[m_fallindx[i]] = pr[i];
     }
 }
 
 void GasKinetics::updateROP()
 {
-    update_rates_C();
-    update_rates_T();
-    if (m_ROP_ok) {
-        return;
-    }
-
-    // copy rate coefficients into ropf
-    m_ropf = m_rfn;
-
-    // multiply ropf by enhanced 3b conc for all 3b rxns
-    if (!concm_3b_values.empty()) {
-        m_3b_concm.multiply(m_ropf.data(), concm_3b_values.data());
-    }
-
-    if (m_falloff_high_rates.nReactions()) {
-        processFalloffReactions();
-    }
-
-    // reactions involving third body
-    for (auto& index : m_multi_indices) {
-        m_ropf[index] *= m_concm[index];
-    }
-
-    for (size_t i = 0; i < nReactions(); i++) {
-        // Scale the forward rate coefficient by the perturbation factor
-        m_ropf[i] *= m_perturb[i];
-        // For reverse rates computed from thermochemistry, multiply the forward
-        // rate coefficients by the reciprocals of the equilibrium constants
-        m_ropr[i] = m_ropf[i] * m_rkcn[i];
-    }
+    processFwdRateCoefficients(m_ropf.data());
+    processThirdBodies(m_ropf.data());
+    copy(m_ropf.begin(), m_ropf.end(), m_ropr.begin());
 
     // multiply ropf by concentration products
     m_reactantStoich.multiply(m_act_conc.data(), m_ropf.data());
 
     // for reversible reactions, multiply ropr by concentration products
+    processEquilibriumConstants(m_ropr.data());
     m_revProductStoich.multiply(m_act_conc.data(), m_ropr.data());
-
     for (size_t j = 0; j != nReactions(); ++j) {
         m_ropnet[j] = m_ropf[j] - m_ropr[j];
     }
@@ -238,11 +211,7 @@ void GasKinetics::updateROP()
 
 void GasKinetics::getFwdRateConstants(double* kfwd)
 {
-    update_rates_C();
-    update_rates_T();
-
-    // copy rate coefficients into ropf
-    m_ropf = m_rfn;
+    processFwdRateCoefficients(m_ropf.data());
 
     if (legacy_rate_constants_used()) {
         warn_deprecated("GasKinetics::getFwdRateConstants",
@@ -252,25 +221,11 @@ void GasKinetics::getFwdRateConstants(double* kfwd)
             "'useLegacyRateConstants(0)' (MATLAB), 'Cantera::use_legacy_rate_constants"
             "(false)' (C++),\nor 'ct_use_legacy_rate_constants(0)' (clib).");
 
-        // multiply ropf by enhanced 3b conc for all 3b rxns
-        if (!concm_3b_values.empty()) {
-            m_3b_concm.multiply(m_ropf.data(), concm_3b_values.data());
-        }
-
-        // reactions involving third body
-        for (auto& index : m_multi_indices) {
-            m_ropf[index] *= m_concm[index];
-        }
+        processThirdBodies(m_ropf.data());
     }
 
-    if (m_falloff_high_rates.nReactions()) {
-        processFalloffReactions();
-    }
-
-    for (size_t i = 0; i < nReactions(); i++) {
-        // multiply by perturbation factor
-        kfwd[i] = m_ropf[i] * m_perturb[i];
-    }
+    // copy result
+    copy(m_ropf.begin(), m_ropf.end(), kfwd);
 }
 
 bool GasKinetics::addReaction(shared_ptr<Reaction> r, bool finalize)
