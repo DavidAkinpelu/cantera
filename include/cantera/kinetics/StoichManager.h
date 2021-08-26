@@ -171,6 +171,11 @@ public:
         jac[m_jc0] += R[m_rxn]; // index (m_ic0, m_rxn)
     }
 
+    void scale(const double* R, double* out) const
+    {
+        out[m_rxn] = R[m_rxn];
+    }
+
 private:
     //! Reaction number
     size_t m_rxn;
@@ -253,6 +258,11 @@ public:
         if (S[m_ic0] > 0) {
             jac[m_jc1] += R[m_rxn] * S[m_ic0]; // index (m_ic1, m_rxn)
         }
+    }
+
+    void scale(const double* R, double* out) const
+    {
+        out[m_rxn] = 2 * R[m_rxn];
     }
 
 private:
@@ -348,6 +358,11 @@ public:
         if (S[m_ic0] > 0 && S[m_ic1] > 0) {
             jac[m_jc2] += R[m_rxn] * S[m_ic0] * S[m_ic1]; // index (m_ic2, m_ic2)
         }
+    }
+
+    void scale(const double* R, double* out) const
+    {
+        out[m_rxn] = 3 * R[m_rxn];
     }
 
 private:
@@ -456,6 +471,11 @@ public:
                 "Found less than {} entries in Jacobian setup for reaction ({}): {}",
                 m_n, m_rxn, count);
         }
+
+        m_sum_order = 0.;
+        for (size_t n = 0; n < m_n; ++n) {
+            m_sum_order += m_order[n];
+        }
     }
 
 void jacobian(const double* S, const double* R, vector_fp& jac) const
@@ -481,6 +501,11 @@ void jacobian(const double* S, const double* R, vector_fp& jac) const
             }
             jac[m_jc[i]] += prod;
         }
+    }
+
+    void scale(const double* R, double* out) const
+    {
+        out[m_rxn] = m_sum_order * R[m_rxn];
     }
 
 private:
@@ -525,6 +550,9 @@ private:
 
     //! Indices in jacobian triplet vector
     vector_int m_jc;
+
+    //! Sum of reaction order vector
+    double m_sum_order;
 };
 
 template<class InputIter, class Vec1, class Vec2>
@@ -586,6 +614,14 @@ inline static void _jacobian(InputIter begin, InputIter end,
 {
     for (; begin != end; ++begin) {
         begin->jacobian(S, R, jac);
+    }
+}
+
+template<class InputIter, class Vec1, class Vec2>
+inline static void _scale(InputIter begin, InputIter end, const Vec1& in, Vec2& out)
+{
+    for (; begin != end; ++begin) {
+        begin->scale(in, out);
     }
 }
 
@@ -837,6 +873,15 @@ public:
         return Eigen::Map<Eigen::SparseMatrix<double>>(
             m_stoichCoeffs.cols(), m_stoichCoeffs.rows(), m_values.size(),
             m_outerIndices.data(), m_innerIndices.data(), m_values.data());
+    }
+
+    //! Scale input by overall reaction order
+    void scale(const double* in, double* out) const
+    {
+        _scale(m_c1_list.begin(), m_c1_list.end(), in, out);
+        _scale(m_c2_list.begin(), m_c2_list.end(), in, out);
+        _scale(m_c3_list.begin(), m_c3_list.end(), in, out);
+        _scale(m_cn_list.begin(), m_cn_list.end(), in, out);
     }
 
 private:

@@ -86,6 +86,15 @@ public:
         return mapped.asDiagonal() * m_multipliers;
     }
 
+    //! Scale input by reaction order in terms of M
+    //! (corresponds to multiplication with either zero or one)
+    void scale(const double* in, double* out) const
+    {
+        for (size_t i = 0; i < m_reaction_index.size(); i++) {
+            out[m_reaction_index[i]] = in[m_reaction_index[i]];
+        }
+    }
+
     size_t workSize() {
         return m_reaction_index.size();
     }
