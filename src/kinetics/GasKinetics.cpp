@@ -360,7 +360,39 @@ Eigen::SparseMatrix<double> GasKinetics::netRatesOfProgress_ddC()
     return jac;
 }
 
-Eigen::VectorXd GasKinetics::ratesOfProgress_ddT(bool forward)
+Eigen::VectorXd GasKinetics::ratesOfProgress_ddT_constP(bool forward, bool reverse)
+{
+    Eigen::VectorXd out(nReactions());
+    double dTinv = 1. / m_jac_atol_deltaT;
+    double T = thermo().temperature();
+    double P = thermo().pressure();
+
+    out.fill(0.);
+    thermo().setState_TP(T + m_jac_atol_deltaT, P);
+    updateROP();
+    if (forward && reverse) {
+        out += MappedVector(m_ropnet.data(), m_ropnet.size());
+    } else if (forward) {
+        out += MappedVector(m_ropf.data(), m_ropf.size());
+    } else {
+        out += MappedVector(m_ropr.data(), m_ropr.size());
+    }
+
+    thermo().setState_TP(T, P);
+    updateROP();
+    if (forward && reverse) {
+        out -= MappedVector(m_ropnet.data(), m_ropnet.size());
+    } else if (forward) {
+        out -= MappedVector(m_ropf.data(), m_ropf.size());
+    } else {
+        out -= MappedVector(m_ropr.data(), m_ropr.size());
+    }
+
+    out *= dTinv;
+    return out;
+}
+
+Eigen::VectorXd GasKinetics::ratesOfProgress_ddT_constV(bool forward, bool warn)
 {
     double dTinv = 1. / m_jac_atol_deltaT;
 
@@ -368,8 +400,31 @@ Eigen::VectorXd GasKinetics::ratesOfProgress_ddT(bool forward)
     vector_fp& k0 = m_rbuf0;
     vector_fp& k1 = m_rbuf1;
 
+    if (warn && legacy_rate_constants_used()) {
+        // @TODO  This is somewhat restrictive; however, using the alternative
+        // definition by default appears to be inconsistent.
+        warn_user("GasKinetics::ratesOfProgress_ddT_constV",
+            "This routine relies on rate\nconstant calculations; here, the legacy "
+            "definition introduces spurious temperature dependencies\ndue to the "
+            "inclusion of third-body concentrations for ThreeBodyReaction objects.\n"
+            "Proceed with caution, or set 'use_legacy_rate_constants' to false for "
+            "new behavior.");
+    }
+
+    double T = thermo().temperature();
+    double P = thermo().pressure();
+
+    thermo().setState_TP(T + m_jac_atol_deltaT, P);
     updateROP();
+    if (forward) {
+        getFwdRateConstants(k1.data());
+    } else {
+        getRevRateConstants(k1.data());
+    }
+
     out.fill(0.);
+    thermo().setState_TP(T, P);
+    updateROP();
     if (forward) {
         out += MappedVector(m_ropf.data(), m_ropf.size());
         getFwdRateConstants(k0.data());
@@ -378,41 +433,40 @@ Eigen::VectorXd GasKinetics::ratesOfProgress_ddT(bool forward)
         getRevRateConstants(k0.data());
     }
 
-    double T = thermo().temperature();
-    double P = thermo().pressure();
-
-    thermo().setState_TP(T + m_jac_atol_deltaT, P);
-    if (forward) {
-        getFwdRateConstants(k1.data());
-    } else {
-        getRevRateConstants(k1.data());
-    }
-
     for (size_t i = 0; i < k0.size(); i++) {
         if (k0[i] != 0) {
             out(i) *= dTinv * (k1[i] - k0[i]) / k0[i];
         } // else not needed: out(i) already zero
     }
-
-    thermo().setState_TP(T, P);
     return out;
+}
+
+void GasKinetics::processConcentrations_ddTscaled(double* rop)
+{
+    double ddT_scaled;
+    if (thermo().type() == "IdealGas") {
+        ddT_scaled = -1. / thermo().temperature();
+    } else {
+        double T = thermo().temperature();
+        double P = thermo().pressure();
+        thermo().setState_TP(T + m_jac_atol_deltaT, P);
+        double ctot1 = thermo().molarDensity();
+        thermo().setState_TP(T, P);
+        double ctot0 = thermo().molarDensity();
+        ddT_scaled = (ctot1 / ctot0 - 1) / m_jac_atol_deltaT;
+    }
+    for (size_t i = 0; i < nReactions(); ++i ) {
+        rop[i] *= ddT_scaled;
+    }
 }
 
 Eigen::VectorXd GasKinetics::fwdRatesOfProgress_ddT()
 {
     if (!m_jac_exact_ddT) {
-        if (legacy_rate_constants_used()) {
-            // @TODO  This is somewhat restrictive; however, using the alternative
-            // definition by default appears to be inconsistent.
-            warn_user("GasKinetics::fwdRatesOfProgress_ddT",
-                "This routine relies on rate\nconstant calculations; here, the legacy "
-                "definition introduces spurious temperature dependencies\ndue to the "
-                "inclusion of third-body concentrations for ThreeBodyReaction objects.\n"
-                "Proceed with caution, or set 'use_legacy_rate_constants' to false for "
-                "new behavior.");
+        if (m_jac_const_pressure) {
+            return ratesOfProgress_ddT_constP(true, false);
         }
-
-        return ratesOfProgress_ddT(true);
+        return ratesOfProgress_ddT_constV(true);
     }
 
     updateROP();
@@ -425,6 +479,31 @@ Eigen::VectorXd GasKinetics::fwdRatesOfProgress_ddT()
 
     for (size_t i = 0; i < m_legacy.size(); ++i) {
         dFwdRop(m_legacy[i]) = NAN;
+    }
+
+    if (m_jac_const_pressure) {
+        MappedVector dFwdRopC(m_rbuf1.data(), nReactions());
+        dFwdRopC.fill(0.);
+        m_reactantStoich.scale(m_ropf.data(), dFwdRopC.data());
+
+        // multiply rop by enhanced 3b conc for all 3b rxns
+        if (!concm_3b_values.empty()) {
+            // Do not support legacy CTI/XML-based reaction rate evaluators
+            throw CanteraError("GasKinetics::fwdRatesOfProgress_ddT",
+                "Not supported for legacy input format.");
+        }
+
+        // reactions involving third body
+        if (!concm_multi_values.empty()) {
+            MappedVector dFwdRopM(m_rbuf2.data(), nReactions());
+            dFwdRopM.fill(0.);
+            m_multi_concm.scale(m_ropf.data(), dFwdRopM.data());
+            dFwdRopC += dFwdRopM;
+        }
+
+        // add term to account for changes of concentrations
+        processConcentrations_ddTscaled(dFwdRopC.data());
+        dFwdRop += dFwdRopC;
     }
 
     return dFwdRop;
@@ -457,18 +536,10 @@ void GasKinetics::processEquilibriumConstants_ddTscaled(double* drkcn)
 Eigen::VectorXd GasKinetics::revRatesOfProgress_ddT()
 {
     if (!m_jac_exact_ddT) {
-        if (legacy_rate_constants_used()) {
-            // @TODO  This is somewhat restrictive; however, using the alternative
-            // definition by default appears to be inconsistent.
-            warn_user("GasKinetics::revRatesOfProgress_ddT",
-                "This routine relies on rate\nconstant calculations; here, the legacy "
-                "definition introduces spurious temperature dependencies\ndue to the "
-                "inclusion of third-body concentrations for ThreeBodyReaction objects.\n"
-                "Proceed with caution, or set 'use_legacy_rate_constants' to false for "
-                "new behavior.");
+        if (m_jac_const_pressure) {
+            return ratesOfProgress_ddT_constP(false, true);
         }
-
-        return ratesOfProgress_ddT(false);
+        return ratesOfProgress_ddT_constV(false);
     }
 
     // reverse rop times scaled rate constant derivative
@@ -490,46 +561,46 @@ Eigen::VectorXd GasKinetics::revRatesOfProgress_ddT()
     }
 
     dRevRop += dRevRop2;
+
+    if (m_jac_const_pressure) {
+        MappedVector dRevRopC(m_rbuf1.data(), nReactions());
+        dRevRopC.fill(0.);
+        m_revProductStoich.scale(m_ropr.data(), dRevRopC.data());
+
+        // multiply rop by enhanced 3b conc for all 3b rxns
+        if (!concm_3b_values.empty()) {
+            // Do not support legacy CTI/XML-based reaction rate evaluators
+            throw CanteraError("GasKinetics::revRatesOfProgress_ddT",
+                "Not supported for legacy input format.");
+        }
+
+        // reactions involving third body
+        if (!concm_multi_values.empty()) {
+            MappedVector dRevRopM(m_rbuf2.data(), nReactions());
+            dRevRopM.fill(0.);
+            m_multi_concm.scale(m_ropr.data(), dRevRopM.data());
+            dRevRopC += dRevRopM;
+        }
+
+        // add term to account for changes of concentrations
+        processConcentrations_ddTscaled(dRevRopC.data());
+        dRevRop += dRevRopC;
+    }
+
     return dRevRop;
 }
 
 Eigen::VectorXd GasKinetics::netRatesOfProgress_ddT()
 {
     if (!m_jac_exact_ddT) {
-        if (legacy_rate_constants_used()) {
-            // @TODO  This is somewhat restrictive; however, using the alternative
-            // definition by default appears to be inconsistent.
-            warn_user("GasKinetics::netRatesOfProgress_ddT",
-                "This routine relies on rate\nconstant calculations; here, the legacy "
-                "definition introduces spurious temperature dependencies\ndue to the "
-                "inclusion of third-body concentrations for ThreeBodyReaction objects.\n"
-                "Proceed with caution, or set 'use_legacy_rate_constants' to false for "
-                "new behavior.");
+        if (m_jac_const_pressure) {
+            return ratesOfProgress_ddT_constP(true, true);
         }
-
-        return ratesOfProgress_ddT(true) - ratesOfProgress_ddT(false);
+        return ratesOfProgress_ddT_constV(true)
+            - ratesOfProgress_ddT_constV(false, false);
     }
 
-    // net rop times scaled rate constant derivative
-    updateROP();
-    Eigen::VectorXd dNetRop(nReactions());
-    copy(m_ropnet.begin(), m_ropnet.end(), &dNetRop[0]);
-    for (auto& rates : m_bulk_rates) {
-        rates->processRateConstants_ddTscaled(
-            thermo(), dNetRop.data(), m_concm.data());
-    }
-
-    // reverse rop times scaled inverse equilibrium constant derivatives
-    Eigen::VectorXd dRevRop2(nReactions());
-    copy(m_ropr.begin(), m_ropr.end(), &dRevRop2[0]);
-    processEquilibriumConstants_ddTscaled(dRevRop2.data());
-
-    for (size_t i = 0; i < m_legacy.size(); ++i) {
-        dNetRop(m_legacy[i]) = NAN;
-    }
-
-    dNetRop -= dRevRop2;
-    return dNetRop;
+    return fwdRatesOfProgress_ddT() - revRatesOfProgress_ddT();
 }
 
 

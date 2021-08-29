@@ -136,6 +136,10 @@ private:
      */
     void processEquilibriumConstants_ddTscaled(double* drkcn);
 
+    //! Derivative of species concentrations with respect to temperature
+    //! (at constant pressure)
+    void processConcentrations_ddTscaled(double* rop);
+
     //! Routine to calculate numerical temperature derivatives
     /*!
      *  @TODO  This is a 'work-around', as there is no consistent handling
@@ -145,7 +149,14 @@ private:
      *      derivatives should be handled there (potentially as a
      *      fall-back option if no exact derivative is available).
      */
-    Eigen::VectorXd ratesOfProgress_ddT(bool forward);
+    Eigen::VectorXd ratesOfProgress_ddT_constP(bool forward, bool reverse);
+
+    //! Routine to calculate numerical temperature derivatives
+    /*!
+     *  @TODO  @see ratesOfProgress_ddT_constP
+     */
+    Eigen::VectorXd ratesOfProgress_ddT_constV(bool forward, bool warn=true);
+
     //!@}
 
     //! Buffers for partial rop results with length nReactions()
