@@ -136,6 +136,9 @@ private:
      */
     void processEquilibriumConstants_ddTscaled(double* drkcn);
 
+    //! Multiply rate with concentration
+    void scaleConcentrations(double *rates);
+
     //! Derivative of species concentrations with respect to temperature
     //! (at constant pressure)
     void processConcentrations_ddTscaled(double* rop);
@@ -166,6 +169,7 @@ private:
 
     //! Jacobian settings
     bool m_jac_const_pressure;
+    bool m_jac_mole_fractions;
     bool m_jac_exact_ddT;
     bool m_jac_skip_third_bodies;
     bool m_jac_skip_falloff;

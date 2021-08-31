@@ -237,6 +237,7 @@ void GasKinetics::getFwdRateConstants(double* kfwd)
 void GasKinetics::getJacobianSettings(AnyMap& settings) const
 {
     settings["constant-pressure"] = m_jac_const_pressure;
+    settings["mole-fractions"] = m_jac_mole_fractions;
     settings["exact-temperature-derivatives"] = m_jac_exact_ddT;
     settings["skip-third-bodies"] = m_jac_skip_third_bodies;
     settings["skip-falloff"] = m_jac_skip_falloff;
@@ -246,10 +247,19 @@ void GasKinetics::getJacobianSettings(AnyMap& settings) const
 void GasKinetics::setJacobianSettings(const AnyMap& settings)
 {
     m_jac_const_pressure = settings.getBool("constant-pressure", true);
+    m_jac_mole_fractions = settings.getBool("mole-fractions", false);
     m_jac_exact_ddT = settings.getBool("exact-temperature-derivatives", false);
     m_jac_skip_third_bodies = settings.getBool("skip-third-bodies", false);
     m_jac_skip_falloff = settings.getBool("skip-falloff", true);
     m_jac_atol_deltaT = settings.getDouble("atol-delta-T", 1e-6);
+}
+
+void GasKinetics::scaleConcentrations(double *rates)
+{
+    double ctot = thermo().molarDensity();
+    for (size_t i = 0; i < nReactions(); ++i) {
+        rates[i] *= ctot;
+    }
 }
 
 Eigen::SparseMatrix<double> GasKinetics::fwdRatesOfProgress_ddC()
@@ -261,6 +271,9 @@ Eigen::SparseMatrix<double> GasKinetics::fwdRatesOfProgress_ddC()
 
     // forward reaction rate coefficients
     processFwdRateCoefficients(rop_rates.data());
+    if (m_jac_mole_fractions) {
+        scaleConcentrations(rop_rates.data());
+    }
 
     // derivatives handled by StoichManagerN
     copy(rop_rates.begin(), rop_rates.end(), rop_stoich.begin());
@@ -292,6 +305,9 @@ Eigen::SparseMatrix<double> GasKinetics::revRatesOfProgress_ddC()
     // reverse reaction rate coefficients
     processFwdRateCoefficients(rop_rates.data());
     processEquilibriumConstants(rop_rates.data());
+    if (m_jac_mole_fractions) {
+        scaleConcentrations(rop_rates.data());
+    }
 
     // derivatives handled by StoichManagerN
     copy(rop_rates.begin(), rop_rates.end(), rop_stoich.begin());
@@ -322,6 +338,9 @@ Eigen::SparseMatrix<double> GasKinetics::netRatesOfProgress_ddC()
 
     // forward reaction rate coefficients
     processFwdRateCoefficients(rop_rates.data());
+    if (m_jac_mole_fractions) {
+        scaleConcentrations(rop_rates.data());
+    }
     copy(rop_rates.begin(), rop_rates.end(), rop_stoich.begin());
 
     // forward derivatives handled by StoichManagerN
