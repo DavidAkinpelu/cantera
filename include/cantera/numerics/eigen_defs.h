@@ -5,12 +5,25 @@
 #define CT_EIGEN_DEFS_H
 
 #include "cantera/base/config.h"
+
+// suppress warnings due to upstream issue in Eigen/src/Core/AssignEvaluator.h:
+// warning: enum constant in boolean context [-Wint-in-bool-context]
+// Eigen version 3.3.7
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wint-in-bool-context"
+#endif
+
 #if CT_USE_SYSTEM_EIGEN
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #else
 #include "cantera/ext/Eigen/Dense"
 #include "cantera/ext/Eigen/Sparse"
+#endif
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
 #endif
 
 namespace Cantera
