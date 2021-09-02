@@ -233,7 +233,6 @@ void GasKinetics::getFwdRateConstants(double* kfwd)
     copy(m_ropf.begin(), m_ropf.end(), kfwd);
 }
 
-
 void GasKinetics::getJacobianSettings(AnyMap& settings) const
 {
     settings["constant-pressure"] = m_jac_const_pressure;
@@ -246,12 +245,25 @@ void GasKinetics::getJacobianSettings(AnyMap& settings) const
 
 void GasKinetics::setJacobianSettings(const AnyMap& settings)
 {
-    m_jac_const_pressure = settings.getBool("constant-pressure", true);
-    m_jac_mole_fractions = settings.getBool("mole-fractions", false);
-    m_jac_exact_ddT = settings.getBool("exact-temperature-derivatives", false);
-    m_jac_skip_third_bodies = settings.getBool("skip-third-bodies", false);
-    m_jac_skip_falloff = settings.getBool("skip-falloff", true);
-    m_jac_atol_deltaT = settings.getDouble("atol-delta-T", 1e-6);
+    bool force = settings.empty();
+    if (force || settings.hasKey("constant-pressure")) {
+        m_jac_const_pressure = settings.getBool("constant-pressure", true);
+    }
+    if (force || settings.hasKey("mole-fractions")) {
+        m_jac_mole_fractions = settings.getBool("mole-fractions", true);
+    }
+    if (force || settings.hasKey("exact-temperature-derivatives")) {
+        m_jac_exact_ddT = settings.getBool("exact-temperature-derivatives", false);
+    }
+    if (force || settings.hasKey("skip-third-bodies")) {
+        m_jac_skip_third_bodies = settings.getBool("skip-third-bodies", false);
+    }
+    if (force || settings.hasKey("skip-falloff")) {
+        m_jac_skip_falloff = settings.getBool("skip-falloff", true);
+    }
+    if (force || settings.hasKey("atol-delta-T")) {
+        m_jac_atol_deltaT = settings.getDouble("atol-delta-T", 1e-6);
+    }
 }
 
 void GasKinetics::scaleConcentrations(double *rates)

@@ -427,7 +427,37 @@ cdef class Kinetics(_SolutionBase):
             return get_species_array(self, kin_getNetProductionRates)
 
     property jacobian_settings:
-        """ """
+        """
+        Property setting behavior of Jacobian evaluation.
+
+        For ``GasKinetics``, the following keyword/value pairs are supported:
+         - ``constant-pressure`` (boolean) ... if `True` (default), constant pressure
+           is assumed, wheareas constant volume is assumed otherwise. For constant
+           pressure, species concentrations are a function of temperature.
+         - ``mole-fractions`` (boolean) ... if `True` (default), Jacobians are
+           calculated with respect to mole fractions; if `False` they are calculated
+           with respect to species concentrations.
+         - ``exact-temperature-derivatives`` (boolean) ... if `False` (default),
+           temperature derivatives are approximated numerically.
+           Note: default behavior will be changed to `True` once the new `ReactionRate`
+           framework is fully implemented.
+         - ``skip-third-bodies`` (boolean) ... if `False` (default), third body
+           concentrations are considered for the evaluation of jacobians
+         - ``skip-falloff`` (boolean) ... if `True` (default), third-body effects
+           on reaction rates are not considered.
+         - ``atol-delta-T`` (double) ... tolerance used to perturb temperature
+           when calculating numerical derivatives.
+
+        The Jacobian settings are updated using a dictionary::
+
+            >>> gas.jacobian_settings = {"mole-fractions": False}
+
+        which updates settings used for the evaluation of Jacobians. Passing an empty
+        dictionary will reset all values to their defaults.
+
+        Warning: this property is an experimental part of the Cantera API and
+            may be changed or removed without notice.
+        """
         def __get__(self):
             cdef CxxAnyMap settings
             self.kinetics.getJacobianSettings(settings)

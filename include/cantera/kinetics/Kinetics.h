@@ -549,10 +549,44 @@ public:
 
     //! @}
     //! @name Routines to Calculate Jacobians / Derivatives
+    /*!
+     * Jacobians are calculated with respect to species concentrations and
+     * temperature for forward/reverse/net rates of progress as well as
+     * creation/destruction and net prodcution of species.
+     *
+     * Jacobian evaluation is set by keyword/value pairs using the methods
+     * @see getJacobianSettings and @see setJacobianSettings.
+     *
+     * For GasKinetics, the following keyword/value pairs are supported:
+     *  - 'constant-pressure' (boolean) ... if 'true' (default), constant pressure
+     *    is assumed, wheareas constant volume is assumed otherwise. For constant
+     *    pressure, species concentrations are a function of temperature.
+     *  - 'mole-fractions' (boolean) ... if 'true' (default), Jacobians are
+     *    calculated with respect to mole fractions; if 'false' they are calculated
+     *    with respect to species concentrations.
+     *  - 'exact-temperature-derivatives' (boolean) ... if 'false' (default),
+     *    temperature derivatives are approximated numerically.
+     *    @TODO default behavior will be changed to 'true' once new ReactionRate
+     *    framework is fully implemented.
+     *  - 'skip-third-bodies' (boolean) ... if 'false' (default), third body
+     *    concentrations are considered for the evaluation of jacobians
+     *  - 'skip-falloff' (boolean) ... if 'true' (default), third-body effects
+     *    on reaction rates are not considered.
+     *  - 'atol-delta-T' (double) ... tolerance used to perturb temperature
+     *    when calculating numerical derivatives.
+     *
+     * @warning Methods used for the evaluation of Jacobians are an experimental
+     *    feature of the %Cantera API and may be changed or removed without notice.
+     */
     //! @{
 
     /**
-     * Retrieve Jacobian settings. @see setJacobianSettings.
+     * Retrieve Jacobian settings.
+     *
+     * @param settings  AnyMap containing settings determining Jacobian evaluation.
+     *
+     * @warning This method is an experimental part of the %Cantera API and
+     *    may be changed or removed without notice.
      */
     virtual void getJacobianSettings(AnyMap& settings) const
     {
@@ -562,6 +596,11 @@ public:
 
     /**
      * Set/modify Jacobian settings.
+     *
+     * @param settings  AnyMap containing settings determining Jacobian evaluation.
+     *
+     * @warning This method is an experimental part of the %Cantera API and
+     *    may be changed or removed without notice.
      */
     virtual void setJacobianSettings(const AnyMap& settings)
     {
