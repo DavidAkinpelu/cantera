@@ -261,6 +261,12 @@ void GasKinetics::setJacobianSettings(const AnyMap& settings)
     if (force || settings.hasKey("skip-falloff")) {
         m_jac_skip_falloff = settings.getBool("skip-falloff", true);
     }
+    if (!m_jac_skip_falloff) {
+        m_jac_skip_falloff = true;
+        throw NotImplementedError("GasKinetics::setJacobianSettings",
+            "Derivative term related to reaction rate dependence on third bodies "
+            "is not implemented.");
+    }
     if (force || settings.hasKey("atol-delta-T")) {
         m_jac_atol_deltaT = settings.getDouble("atol-delta-T", 1e-6);
     }
